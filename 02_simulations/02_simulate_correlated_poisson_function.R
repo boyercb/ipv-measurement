@@ -138,7 +138,17 @@ get_diagnosands(diagnoses) %>%
              color = estimator_label, 
              group = estimator_label)) +
   geom_point()
-  
+
+get_diagnosands(diagnoses) %>% 
+  left_join(data.frame(
+    means = sapply(means, unique), 
+    design_label = paste0("design_",1:length(means))
+  )) %>% 
+  ggplot(aes(x = means, y = power, 
+             color = estimator_label, 
+             group = estimator_label)) +
+  geom_point()
+
 
 
 
