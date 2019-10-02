@@ -1,0 +1,119 @@
+---
+title: "IPV Measurement Memo"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: true
+    code_folding: hide
+    collapsed: false
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+# had to separate this chunk because my Rstudio evaluates it in the working directory 
+# instead of the project director even though I changed the global settings.
+knitr::opts_chunk$set(
+  cache = FALSE,
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+rm(list = ls())
+```
+
+```{r}
+library(DeclareDesign)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+# Introduction
+```{r}
+simulate_pois <- function(
+  N = 500, 
+  lambda = 0.5,
+  teffect = -0.10
+){
+  declare_population(N = N) +
+    declare_assignment(prob = 0.5) +
+    declare_step(
+      freq_violence_Z_1 = rpois(N, lambda + teffect),
+      freq_violence_Z_0 = rpois(N, lambda),
+      any_violence_Z_1 = as.numeric(freq_violence_Z_1 > 0),
+      any_violence_Z_0 = as.numeric(freq_violence_Z_0 > 0),
+      handler = fabricate
+    ) +
+    declare_estimand(
+      ATE_cont = mean(freq_violence_Z_1 - freq_violence_Z_0),
+      ATE_bin = mean(any_violence_Z_1 - any_violence_Z_0)) + 
+    declare_reveal(
+      assignment_variables = "Z",
+      outcome_variables = c("freq_violence", "any_violence")) + 
+    declare_estimator(
+      any_violence ~ Z,
+      estimand = "ATE_bin",
+      model = lm_robust,
+      label = "binary outcome") + 
+    declare_estimator(
+      freq_violence ~ Z,
+      estimand = "ATE_cont",
+      model = lm_robust,
+      label = "continuous outcome")
+}
+
+design <- simulate_pois()
+df <- draw_data(design)
+
+ggplot(df, aes(x = freq_violence_Z_0)) +
+  geom_bar(aes(y = ..prop..)) +
+  geom_text(
+    aes(label = round(prop, 2), y = prop + 0.01),
+    position = position_dodge(0.9),
+    size = 3,
+    vjust = 0,
+    data = df %>% group_by(freq_violence_Z_0) %>% summarise(prop = n() / nrow(df))
+  ) +
+  labs(title = "PMF of Simulated Violent Events",
+       subtitle = "Poisson(0.3)",
+       x = "Violent Events (x)",
+       y = "Density"
+  )
+```
+
+# Results
+```{r}
+# Let's see how SE depends on mean ----------------------------------------
+
+lambdas <- lapply(seq(0.3, 1, .05), rep, 10)
+
+means_designs <- 
+  expand_design(designer = simulate_pois,
+                lambda = lambdas, 
+                teffect = list(rep(-.15, 10)),
+                expand = TRUE) 
+
+diagnoses <- diagnose_designs(means_designs, sims = 500)
+
+get_diagnosands(diagnoses) %>% 
+  left_join(data.frame(
+    lambdas = sapply(lambdas, unique), 
+    design_label = paste0("design_",1:length(lambdas))
+  )) %>% 
+  ggplot(aes(x = lambdas, y = mean_se, 
+             color = estimator_label, 
+             group = estimator_label)) +
+  geom_point()
+
+get_diagnosands(diagnoses) %>% 
+  left_join(data.frame(
+    lambdas = sapply(lambdas, unique), 
+    design_label = paste0("design_",1:length(lambdas))
+  )) %>% 
+  ggplot(aes(x = lambdas, y = power, 
+             color = estimator_label, 
+             group = estimator_label)) +
+  geom_point()
+```
