@@ -15,8 +15,8 @@ output:
 # had to separate this chunk because my Rstudio evaluates it in the working directory 
 # instead of the project director even though I changed the global settings.
 knitr::opts_chunk$set(
-  cache = FALSE,
-  echo = TRUE,
+  cache = TRUE,
+  echo = FALSE,
   message = FALSE,
   warning = FALSE
 )
@@ -31,6 +31,36 @@ library(kableExtra)
 ```
 
 # Introduction
+Most studies on interventions to reduce intimate partner violence rely on some form of the Conflict Tactics Scale (CTS)^[test] to quantify a participent's experience of violence. This instrument attempts to dissociate acts/behaviors from their personal or social meaning as "violence" by asking the respondent to report the frequency that they have experienced specific acts over a defined recall period.
+
+```{r}
+questions <- tribble(
+  ~v1, ~v2, ~v3, ~v4, ~v5,
+"slapped you or thrown something at you that could hurt you?", "0", "1", "2", "3",
+"pushed you or shoved you or pulled your hair?", "0", "1", "2", "3",
+"hit you with his fist or with something else that could hurt you?", "0", "1", "2", "3",
+"kicked you, dragged you or beaten you up?", "0", "1", "2", "3",
+"choked or burnt you on purpose?", "0", "1", "2", "3",
+"threatened you with or actually used a gun, knife or other weapon against you?", "0", "1", "2", "3"
+)
+
+kable(
+  questions, 
+  format = "html",
+  caption = "Example of questions adapted from CTS for measuring violence.",
+  col.names = c(
+     "In the past 12 months, how often has your partner...", 
+     "Never", "Once", "A few times", "Many times"
+  )) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+
+Traditionally, the researcher collapses the answers to these questions into a single binary outcome representing whether the respondent reports any act of violence during the recall period and uses this as the basis for statistical inference. We believe this outcome is more of a historical consequence rather than the optimal analytical choice from a research perspective. In this paper, we evaluate this coding strategy in terms of its efficiency --i.e. the consequences in terms of the statistical power and precision for answering substantive research questions-- as well as its implications for theory and mechanism of violence reduction. We do this through a simulation study.
+
+# Description of simulation
+We begin by assuming a model for violence ($Y$), specifically we assume that it may be modeled as Poisson process governed by a common parameter $\lambda$ that represents the average rate of violence during the defined recall period. 
+\[Y \sim \text{Poisson}(\lambda)\]
+We choose this model as a starting point because it is relatively straightforward while still matching the empirical data distribution quite well. It also makes some sense as, in probability theory, the Poisson distribution generally describes the probability of observing $k$ events in a finite time period (e.g. in our case, the probability of experincing $k$ instances of a single act of violence over the recall period). Using `R` we can simulate random Poisson observations for a study population of size $N$.
 ```{r}
 simulate_pois <- function(
   N = 500, 
@@ -82,6 +112,30 @@ ggplot(df, aes(x = freq_violence_Z_0)) +
        y = "Density"
   )
 ```
+
+Next, we simulate a hypothetical randomized intervention study by constructing two counterfactual outcomes representing, for each individual, their value of $Y$ if given the intervention and their value of $Y$ if not given the intervention.
+\[
+Y^{z} \begin{cases}
+Y^0 & \text{counterfactual number of violent events under intervention} \\
+Y^1 & \text{counterfactual number of violent events without intervention}
+\end{cases}
+\]
+We define two different coding strategies for the violent event outcomes. The first strategy is to collapse $Y^{z}$ into a single binary measure, i.e.
+\[
+Y^{z}_{binary} = 
+\begin{cases}
+0 & \text{if } Y^{z} = 0 \\
+1 & \text{if } Y^{z} \geq 1 \\
+\end{cases}
+\]
+The second is to leave it as a continuous measure
+\[Y^{z}_{continuous} = Y^{z}\]
+
+These simulated individuals are then randomly assigned to either an intervention $Z=1$ or no intervention condition $Z=0$ that determines which counterfactual outcome they reveal (i.e. $Y^{1}_{binary}$ vs. $Y^{0}_{binary}$ and $Y^{1}_{continuous}$ vs. $Y^{0}_{continuous}$) and finally we estimate treatment effect as we would in the real world using regressions of the form.
+
+\[\text{E}[Y \mid Z] = \beta_0 + \beta_1 Z\]
+
+We do this using the `DeclareDesign`^[https://declaredesign.org] package in `R` which provides a robust set of 
 
 # Results
 ```{r}
