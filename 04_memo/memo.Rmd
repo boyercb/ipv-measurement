@@ -31,7 +31,7 @@ library(kableExtra)
 ```
 
 # Introduction
-Most studies on interventions to reduce intimate partner violence rely on some form of the Conflict Tactics Scale (CTS)^[test] to quantify a participent's experience of violence. This instrument attempts to dissociate acts/behaviors from their personal or social meaning as "violence" by asking the respondent to report the frequency that they have experienced specific acts over a defined recall period.
+Most evaluations of interventions to reduce intimate partner violence rely on some form of the Conflict Tactics Scale (CTS)^[test] to quantify a participant's experience of violence. This instrument attempts to dissociate acts/behaviors from their personal or social meaning as "violence" by asking the respondent to report the frequency that they have experienced specific acts over a defined recall period.
 
 ```{r}
 questions <- tribble(
@@ -47,7 +47,8 @@ questions <- tribble(
 kable(
   questions, 
   format = "html",
-  caption = "Example of questions adapted from CTS for measuring violence.",
+  align = "lcccc",
+  caption = "Table 1. Example of questions adapted from CTS for measuring violence.",
   col.names = c(
      "In the past 12 months, how often has your partner...", 
      "Never", "Once", "A few times", "Many times"
@@ -61,6 +62,7 @@ Traditionally, the researcher collapses the answers to these questions into a si
 We begin by assuming a model for violence ($Y$), specifically we assume that it may be modeled as Poisson process governed by a common parameter $\lambda$ that represents the average rate of violence during the defined recall period. 
 \[Y \sim \text{Poisson}(\lambda)\]
 We choose this model as a starting point because it is relatively straightforward while still matching the empirical data distribution quite well. It also makes some sense as, in probability theory, the Poisson distribution generally describes the probability of observing $k$ events in a finite time period (e.g. in our case, the probability of experincing $k$ instances of a single act of violence over the recall period). Using `R` we can simulate random Poisson observations for a study population of size $N$.
+
 ```{r}
 simulate_pois <- function(
   N = 500, 
@@ -70,10 +72,10 @@ simulate_pois <- function(
   declare_population(N = N) +
     declare_assignment(prob = 0.5) +
     declare_step(
-      freq_violence_Z_1 = rpois(N, lambda + teffect),
       freq_violence_Z_0 = rpois(N, lambda),
-      any_violence_Z_1 = as.numeric(freq_violence_Z_1 > 0),
+      freq_violence_Z_1 = rpois(N, lambda + teffect),
       any_violence_Z_0 = as.numeric(freq_violence_Z_0 > 0),
+      any_violence_Z_1 = as.numeric(freq_violence_Z_1 > 0),
       handler = fabricate
     ) +
     declare_estimand(
@@ -116,10 +118,35 @@ ggplot(df, aes(x = freq_violence_Z_0)) +
 Next, we simulate a hypothetical randomized intervention study by constructing two counterfactual outcomes representing, for each individual, their value of $Y$ if given the intervention and their value of $Y$ if not given the intervention.
 \[
 Y^{z} \begin{cases}
-Y^0 & \text{counterfactual number of violent events under intervention} \\
-Y^1 & \text{counterfactual number of violent events without intervention}
+Y^0 & \text{counterfactual number of violent events under no intervention} \\
+Y^1 & \text{counterfactual number of violent events under intervention}
 \end{cases}
 \]
+We simulate $Y^0$ as a Poisson random variable with $\lambda = 0.3$, representing a baseline frequency of violence that matches that of our empirical sample. We then calculate $Y^1$ for each individual as their counterfactual value under no intervention plus the effect of the intervention, i.e.
+\[Y^1 = Y^0 + \tau\]
+We consider possible values of $\tau$ between -0.3 (complete cessation for all) and 0 (no effect for any individual).
+```{r, eval=F}
+questions <- tribble(
+  ~v1, ~v2, 
+"$\\tau_1$", "",
+"$\\tau_2$", "",
+"$\\tau_3$", "",
+"$\\tau_4$", ""
+)
+
+kable(
+  questions, 
+  format = "html",
+  align = "ll",
+  caption = "Table 2. Treatment effects.",
+  escape = F,
+  col.names = c(
+     "Effect", 
+     "Description"
+  )) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+
 We define two different coding strategies for the violent event outcomes. The first strategy is to collapse $Y^{z}$ into a single binary measure, i.e.
 \[
 Y^{z}_{binary} = 
@@ -141,32 +168,32 @@ We do this using the `DeclareDesign`^[https://declaredesign.org] package in `R` 
 ```{r}
 # Let's see how SE depends on mean ----------------------------------------
 
-lambdas <- lapply(seq(0.3, 1, .05), rep, 10)
+teffects <- lapply(seq(-0.3, 0, .01), rep, 10)
 
 means_designs <- 
   expand_design(designer = simulate_pois,
-                lambda = lambdas, 
-                teffect = list(rep(-.15, 10)),
+                lambda = list(rep(0.3, 10)), 
+                teffect = teffects,
                 expand = TRUE) 
 
-diagnoses <- diagnose_designs(means_designs, sims = 500)
+diagnoses <- diagnose_designs(means_designs, sims = 1000)
 
 get_diagnosands(diagnoses) %>% 
   left_join(data.frame(
-    lambdas = sapply(lambdas, unique), 
-    design_label = paste0("design_",1:length(lambdas))
+    teffects = sapply(teffects, unique), 
+    design_label = paste0("design_",1:length(teffects))
   )) %>% 
-  ggplot(aes(x = lambdas, y = mean_se, 
+  ggplot(aes(x = teffects, y = mean_se, 
              color = estimator_label, 
              group = estimator_label)) +
   geom_point()
 
 get_diagnosands(diagnoses) %>% 
   left_join(data.frame(
-    lambdas = sapply(lambdas, unique), 
-    design_label = paste0("design_",1:length(lambdas))
+    teffects = sapply(teffects, unique), 
+    design_label = paste0("design_",1:length(teffects))
   )) %>% 
-  ggplot(aes(x = lambdas, y = power, 
+  ggplot(aes(x = teffects, y = power, 
              color = estimator_label, 
              group = estimator_label)) +
   geom_point()
