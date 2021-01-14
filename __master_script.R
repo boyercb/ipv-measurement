@@ -1,7 +1,7 @@
 
 # define script globals ---------------------------------------------------
 
-RERUN_SIMS <- FALSE
+RERUN_SIMS <- TRUE
 N_SIMS <- 1000
 
 
