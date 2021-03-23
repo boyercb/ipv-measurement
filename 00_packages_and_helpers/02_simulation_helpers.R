@@ -39,7 +39,7 @@ ipv_design <- function(N, lambda, theta, Rho, tau = -1) {
     ) +
     # construct final outcomes
     declare_step(
-      .cols = paste0("Y", 1:length(lambda)),
+      .cols = paste0("Y", 1:length(lambda), "_star"),
       handler = construct_outcomes
     ) + 
     declare_estimator(
