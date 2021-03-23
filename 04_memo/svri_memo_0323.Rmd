@@ -1,0 +1,461 @@
+---
+title: "IPV Measurement Memo"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: true
+    code_folding: hide
+    collapsed: false
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+# had to separate this chunk because my Rstudio evaluates it in the working directory 
+# instead of the project director even though I changed the global settings.
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+library(kableExtra)
+```
+
+```{r, results='hide'}
+# define script globals ---------------------------------------------------
+
+RERUN_SIMS <- FALSE
+N_SIMS <- 1000
+
+
+# load packages and helper functions --------------------------------------
+
+source("00_packages_and_helpers/01_load_packages.R")
+
+source("00_packages_and_helpers/02_simulation_helpers.R")
+
+
+# clean empirical datasets and calculate distribution parameters ----------
+
+source("01_clean_data/01_define_variable_lists.R")
+
+source("01_clean_data/02_load_empirical_data.R")
+
+source("01_clean_data/03_empirical_distributions.R")
+
+
+# define and run simulations ----------------------------------------------
+
+source("02_simulations/01_define_simulation_parameters.R")
+
+source("02_simulations/02_run_simulations.R")
+
+```
+
+# Summary
+
+ * Both the continuous and the binary measure of violence yield unbiased estimates of the true treatment effect, but of different estimands:
+    + The binary measure produces an unbiased estimate of the difference in the proportion who are experiencing any violence over the recall period.
+    + The continuous measure produces an unbiased estimate of the mean difference in number and frequency of violent acts experienced over the recall period.
+ * In simple simulations for a single act of violence (e.g. slapping) the continuous measure dominates the binary in terms of power except in the limit where the effect is very small (almost zero) or very large (almost complete cessation) in which case they are about equal.
+ * In more complex simulations where we model 10 different violent acts, the continuous still dominates when there is a constant/homogeneous effect across all acts.
+ * However, when we allow for heterogeneity/effects to vary by act, there are instances in which the binary measure is higher powered. These arise in cases in which there is a divergence in effects, where some acts are positively affected and some are negatively affected, or when effects are concentrated at the low end of the frequency distribution.
+ 
+# Introduction
+Most evaluations of interventions to reduce intimate partner violence rely on some form of the Conflict Tactics Scale (CTS)^[Straus, M. A., Hamby, S. L., Boney-McCoy, S., & Sugarman, D. B. (1996). The revised conflict tactics scales (CTS2) development and preliminary psychometric data. Journal of family issues, 17(3), 283-316.] to quantify a participant's experience of violence. This instrument attempts to dissociate acts/behaviors from their personal or social meaning as "violence" by asking the respondent to report the frequency that they have experienced specific acts over a defined recall period.
+
+```{r}
+questions <- tribble(
+  ~v1, ~v2, ~v3, ~v4, ~v5,
+"slapped you or thrown something at you that could hurt you?", "0", "1", "2", "3",
+"pushed you or shoved you or pulled your hair?", "0", "1", "2", "3",
+"hit you with his fist or with something else that could hurt you?", "0", "1", "2", "3",
+"kicked you, dragged you or beaten you up?", "0", "1", "2", "3",
+"choked or burnt you on purpose?", "0", "1", "2", "3",
+"threatened you with or actually used a gun, knife or other weapon against you?", "0", "1", "2", "3",
+"physically forced you to have sex with him when you didn’t want to?", "0", "1", "2", "3",
+"used threats or intimidation to make you have sex when you did not want to?", "0", "1", "2", "3",
+"used physical force or threats to make you do something else sexual that you did not want to do?",  "0", "1", "2", "3"
+)
+
+kable(
+  questions, 
+  format = "html",
+  align = "lcccc",
+  caption = "Table 1. Example of questions adapted from CTS for measuring violence.",
+  col.names = c(
+     "In the past 12 months, how often has your partner...", 
+     "Never", "Once", "A few times", "Many times"
+  )) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+
+Traditionally, the researcher collapses the answers to these questions into a single binary outcome representing whether the respondent reports any act of violence during the recall period and uses this as the basis for statistical inference. We believe this outcome is more of a historical consequence reflecting path-dependence from prevalence surveys rather than the optimal analytical choice for an intervention study. In this paper, we evaluate this coding strategy in terms of its efficiency --i.e. the consequences in terms of the statistical power and precision for answering substantive research questions-- as well as its implications for theory and mechanism of violence reduction. We do this through a simulation study.
+
+# Model
+## Single act model
+We start by defining a model for violence prior to measurement and outcome coding. We assume that the number of violent acts ($Y$) that occur over the follow up period can be modeled as i.i.d. realizations from zero-inflated Poisson process of the form
+
+\begin{aligned}
+
+Y & \sim 0 & \text{with probability } \theta \\
+  & \sim \text{Poisson}(\lambda) &\text{with probability } 1 - \theta
+  
+\end{aligned}
+
+where the source of the excess zeros is a latent subpopulation of "nonviolent" couples. Here $\theta$ represents the probability that a woman is in a "nonviolent" relationship and $\lambda$ represents the average rate of violence among "violent" relationships. As in the CTS, we assume the true number of acts is further categorized via the measurement process
+
+\[
+Y^* = \begin{cases} 0 & \text{if }Y = 0 \\ 1 & \text{if } Y = 1 \\ 2 & \text{if } 2 \leq Y  \leq4 \\ 3 & \text{if } Y  \geq 5\end{cases}
+\]
+
+where 0 = "Never", 1 = "Once", 2 = "A few times", 3 = "Many times". We believe this model for the distribution of violent acts nicely balances theory with parsimony and, as shown in Figure 1 below, we also find that it fits the empirical data distribution quite well, where here the parameters $\lambda$ and $\theta$ are estimated via maximum likelihood. 
+
+```{r}
+set.seed(8376423)
+
+ggplot() +
+  geom_bar(
+    aes(x = physical_push_5mo_freq_i_w, y = ..prop.., fill = "Observed"),
+    data = subset(elw, Z == 0),
+    #binwidth = 1,
+    alpha = 0.4
+  ) + 
+  geom_bar(
+    aes(x = x_star, y = ..prop.., fill = "Simulated"),
+    data = tibble(
+      x = rbinom(840, 1, 1 - 0.839736) * rpois(840, 2.36709)
+    ) %>% categorize_counts(., "x"),
+    #binwidth = 1,
+    alpha = 0.4
+  ) + 
+  geom_text(
+    aes(x = physical_push_5mo_freq_i_w, label = round(prop, 2), y = prop + 0.01),
+    position = position_dodge(0.9),
+    size = 3,
+    vjust = 0,
+    data = subset(elw, Z == 0) %>% group_by(physical_push_5mo_freq_i_w) %>% summarise(prop = n() / nrow(subset(elw, Z == 0)))
+  ) +
+  scale_fill_manual(name = "", values = c("Simulated" = alpha("red", 0.4), "Observed" = alpha("blue", 0.4))) +
+  labs(title = "PMF of observed versus simulated violent acts",
+       subtitle = bquote(theta == 0.84~"and"~ lambda == 2.35),
+       x = "Violent Events (x)",
+       y = "Probability"
+  )
+  
+  
+```
+
+We further define two potential outcomes representing the number of violent acts experienced when assigned to a hypothetical violence reduction program $Y(1)$ as well as the number of violent acts experienced when not assigned the program $Y(0)$. For each individual, the difference between these two potential outcomes is the causal effect of the program and thus
+
+\[Y(1) = Y(0) + \tau\]
+
+In a randomized controlled trial, our target is generally to estimate the average causal effect of the program, i.e.
+
+\[\mathbb{E}[Y(1) - Y(0)] = \mathbb{E}[\tau]\]
+
+## Multiple act model
+In the CTS, violence is measured by multiple, potentially correlated, acts. We extend the single act model above by defining i.i.d. vector $(Y_1, Y_2, \ldots, Y_{10})'$ where each element is now the number of reported acts of violence of each type given in Table 1. These are jointly distributed zero-inflated Poisson random variables
+
+\[(Y_1, Y_2, \ldots, Y_{10})' \sim \text{ZIPS}(\mathbf{\lambda}, \mathbf{\theta}, \mathbf{\Sigma}) \]
+
+where $\mathbf{\lambda}$ and $\mathbf{\theta}$ are the vector analogs to $\lambda$ and $\theta$ defined previously but $\mathbf{\Sigma}$ is now the variance-covariance matrix specifying the correlation structure between the types of violence. Figure 2 below shows an example of the data generated in this case.
+
+```{r, fig.height=11}
+design <- ipv_design(
+  N = 1680,
+  lambda = lambda,
+  theta = theta,
+  Rho = Rho,
+  tau = function(x) { x }
+)
+
+df <- draw_data(design)
+
+p1 <- ggplot(df, aes(x = Y_star)) +
+  geom_bar(aes(y = ..prop..)) +
+  labs(title = "PMF of sum of multiple acts",
+       x = "",
+       y = "Probability"
+  )
+
+acts <- c(
+  "slaps",
+  "pushes",
+  "punches",
+  "twists",
+  "kicks",
+  "chokes",
+  "weapon",
+  "forcesex",
+  "pressuresex",
+  "degrade"
+)
+
+df_long <- 
+  df %>% 
+  dplyr::select(
+    Y1_star,
+    Y2_star,
+    Y3_star,
+    Y4_star,
+    Y5_star,
+    Y6_star,
+    Y7_star,
+    Y8_star,
+    Y9_star,
+    Y10_star
+  ) %>%
+  gather(key, value) %>%
+  mutate(key = str_remove(key, "_star"))
+
+p2 <- 
+  ggplot(df_long, aes(x = value)) +
+  geom_bar(aes(y = ..prop..)) +
+  facet_wrap(~factor(key, levels = paste0("Y", 1:10), labels = acts), ncol = 5) + 
+  labs(x = "Violent Events (x)",
+       y = "Probability",
+       title = "PMF of each act"
+  )
+
+cmat <- df[, paste0(paste0("Y", 1:10))]
+colnames(cmat) <- acts
+
+p3 <- 
+  ggcorrplot::ggcorrplot(
+    title = "Correlation matrix",
+    cor(cmat),
+    type = 'lower',
+    lab = TRUE,
+    lab_col = "black",
+    lab_size = 2.75,
+  )
+
+gridExtra::grid.arrange(p1, p2, p3)
+```
+
+
+# Simulation
+## Setup 
+In order to explore the effects of outcome coding choice on causal effect estimates, we conduct a series of finite sample monte carlo simulations using the `DeclareDesign`^[https://declaredesign.org] package in R. We generate potential outcome data according to the model defined above and set values of $\mathbf{\lambda}$ and $\mathbf{\theta}$ based on empirical estimates from the Becoming One project in Uganda and $\tau$ defined according to know treatment effect structure. In all simulations we generate $N = 1680$ observations, the sample size from the same project, randomize half to a hypothetical program and half to control, apply outcome coding choices, and estimate program effects. We repeat this 1000 times and calculate performance statistics (i.e. bias, RMSE, coverage, power). We conduct a series of experiments in which we vary the treatment effect structures and then compare different outcome coding choices under consistent estimation strategies as defined below.
+
+## Outcome coding
+We consider two outcome coding strategies. The first is based on the most common strategy in the literature which collapses the 10 items in the CTS scale into a single binary measure representing whether the woman reported any acts of violence during the recall period. 
+\[Y_{binary} = \begin{cases} 0 & \text{if all } Y_1 = 0, Y_2 = 0, \ldots, Y_{10} = 0  \\ 1 & \text{if any } Y_1 > 0 \text{ or } Y_2 > 0 \text{ or }  \ldots \text{ or } Y_{10} > 0 \end{cases}\]
+Treatment effects based on this outcome represent difference in probability of reporting any violence. Depending on prior history, it consists of cessation of violence or prevention of violence or both. 
+
+The second outcome coding strategy is a continuous measure that is still straightforward to construct, but less common: a simple sum of the 10 items. 
+\[Y_{continous} = Y_1 + Y_2 + \ldots + Y_{10}\]
+Treatment effects based on this outcome represent differences in number of acts of violence if the true number of acts is recorded, but is a little more difficult to interpret if the CITS categories are used, i.e. 0 = "Never", 1 = "Once", 2 = "A few times", 3 = "Many times". It treats all acts as essentially the same (regardless of severity), but can reflect greater gradation in the amount of violence reported.
+
+## Treatment effect structures
+Programs can affect violence in a given population in a variety of ways, they could have broad and consistent effects for all participants or only benefit a handful of the most active; they may influence certain types of violence or violent "profiles" more than others; they could have more mixed effects producing small improvements but also backlash; or they could prevent new cases of violence but leave those already experiencing violence without much benefit. Each of these in turn may have different implications for outcome coding choice. To explore the influence of treatment effect structure we simulate the following treatment effect models.
+
+1. `constant` - a constant/homogeneous treatment effect across all 10 acts
+2. `physical_only` - moderate reductions in all physical violence variables, but no reduction in sexual violence.
+3. `sexual_only` - moderate reductions in all sexual violence variables, but no reduction in physical violence.
+4. `moderate_only` - reduction in only slapping and pushing, all other acts are unaffected.
+5. `severe_backlash` - reductions in slapping and pushing, but uptick in more severe violence in sexual violence.
+6. `sexual_backlash` - reductions in physical violence, but uptick in sexual violence (possibly due to increased reporting).
+
+While these are by no means exhaustive, they do represent several plausible scenarios for how program effects might occur. Other scenarios could easily be accomodated by our model.
+
+## Answer strategies
+For both continous and binary outcomes, we use a least squares regression^[We could use a nonlinear model such as logit or probit for the binary outcome, however we don't because (1) we are principally concerned with coding rather than estimation, (2) least squares with robust SEs is still unbiased, and (3) often the difference in average partial effects is quite small] estimator to estimate the average treatment effect of the form
+\[Y_i = \alpha + \tau Z_i + \varepsilon_i\]
+where $Z_i$ is the random assignement indicator and $\tau$ is the average treatment effect. We calculate robust standard errors using `HC2` formulation from `estimatr` package. 
+
+# Results
+
+## Single act simulation
+The figure below shows the results for simulations on just a single violent act. The red lines in the first panel are the true effect values and the dots represent individual simulated trials. Both the continuous and binary measures are unbiased for their respective estimands when we use the CTS coding as "truth" and don't consider the latent true number of acts. The spread of the continuous outcome effect estimates reflects the greater range of this measure (it is on a scale from 0 to 3). The second panel compares the power across a range of constant tau values. The continuous outcome measure dominates the binary outcome measure in terms of power at most effect sizes besides those that are very small and those that are very large.
+```{r}
+# Let's see how SE depends on mean ----------------------------------------
+
+simulate_pois <- function(N = 500,
+                          lambda = 0.5,
+                          teffect = -0.10) {
+  declare_population(N = N) +
+    declare_assignment(prob = 0.5) +
+    declare_step(
+      freq_violence_Z_0 = rpois(N, lambda),
+      freq_violence_Z_1 = rpois(N, lambda + teffect),
+      any_violence_Z_0 = as.numeric(freq_violence_Z_0 > 0),
+      any_violence_Z_1 = as.numeric(freq_violence_Z_1 > 0),
+      handler = fabricate
+    ) +
+    declare_estimand(
+      ATE_cont = mean(freq_violence_Z_1 - freq_violence_Z_0),
+      ATE_bin = mean(any_violence_Z_1 - any_violence_Z_0)
+    ) +
+    declare_reveal(
+      assignment_variables = "Z",
+      outcome_variables = c("freq_violence", "any_violence")
+    ) +
+    declare_estimator(
+      any_violence ~ Z,
+      estimand = "ATE_bin",
+      model = lm_robust,
+      label = "binary\noutcome"
+    ) +
+    declare_estimator(
+      freq_violence ~ Z,
+      estimand = "ATE_cont",
+      model = lm_robust,
+      label = "continuous\noutcome"
+    )
+}
+
+teffects <- lapply(c(-0.16, -0.12, -0.08, -0.04), rep, 10)
+
+simple_design <- 
+  expand_design(designer = simulate_pois,
+                lambda = list(rep(0.3, 10)), 
+                teffect = teffects,
+                expand = TRUE) 
+
+diagnoses <- diagnose_designs(simple_design, sims = 1000)
+
+teffect_labels <- c(
+  "-0.16" = "tau == -0.16",
+  "-0.12" = "tau == -0.12",
+  "-0.08" = "tau == -0.08",
+  "-0.04" = "tau == -0.04" 
+)
+
+plot_df <- 
+  get_simulations(diagnoses) %>% 
+  as_tibble() %>%
+  mutate(
+    teffect = rep(c(-0.16, -0.12, -0.08, -0.04), each = 2000),
+  )
+
+plot_df %>%
+  filter(round(teffect,2) %in% c(-0.16, -0.12, -0.08, -0.04)) %>%
+  ggplot(aes(x = estimate, y = estimator_label)) +
+    facet_wrap(
+      ~ factor(teffect, labels = teffect_labels),
+      nrow = 2,
+      ncol = 2,
+      labeller = label_parsed
+    ) +
+    geom_jitter(alpha = 0.10, height = 0.3, shape = 16) +
+    geom_segment(aes(
+      x = estimate,
+      y = y + 0.35,
+      yend = y - 0.35,
+      xend = estimate,
+      group = estimator_label
+    ),
+    data = plot_df %>%
+      filter(round(teffect, 2) %in% c(-0.16, -0.12, -0.08, -0.04)) %>%
+      group_by(teffect, estimator_label) %>%
+      summarise(estimate = mean(estimate)) %>%
+      mutate(y = ifelse(estimator_label == "continuous\noutcome", 2, 1)),
+    color = "red") +
+    labs(x = expression("Estimate"~(widehat(tau))), y = "") 
+  
+```
+
+```{r}
+power_df <- 
+  get_diagnosands(diagnoses) %>% 
+  as_tibble() %>%
+  mutate(
+    teffect = rep(c(-0.16, -0.12, -0.08, -0.04), each = 2),
+  )
+
+power_df %>%
+  filter(round(teffect,2) %in% c(-0.16, -0.12, -0.08, -0.04)) %>%
+  ggplot(aes(y = power, x = estimator_label)) +
+  facet_grid(~factor(teffect, labels = teffect_labels), labeller = label_parsed) +
+  geom_point() +
+  geom_segment(aes(y = power - 1.96 * `se(power)`, yend = power + 1.96 * `se(power)`, xend = estimator_label)) +
+  geom_text(aes(label = round(power, 2)), nudge_y = 0.1, size = 3) +
+  labs(x = expression("Power"~(beta)), y = "")
+```
+
+
+## Multiple act simulation
+The next figure shows the results of the multiple act simulation. In the more complicated (and perhaps more realistic) scenarios considered here the continuous measure no longer strictly dominates. Taking each scenario in turn, when effects are constant, as they were in the single act case above, the continuous measure has more power. When there's a constant effect only on normatively more moderate forms of violence (hitting and slapping), now the binary measure dominates as there are many women who report one act of moderate violence who are moved to no violence but overall the number of acts decreases only slightly. Next, when all physical, but not sexual, forms of violence experience reductions the continuous measure dominates again as it does when all sexual, but not physical forms of violence experience reductions. In both cases, the continuous measure is aided by the fact that there are reductions in both several forms and at all frequency levels. Finally, in the two backlash cases we have diverging results, in the first case the binary measure is less powerful as proportions experiencing any violence are mostly offset while the continuous measure is sensitive to the increase in so many acts simultaneously. In the second case, the continuous measure is now less powerful as the more common sexual violence acts offset the physical act reductions while the binary measure is again sensitive to the movements of the women who report one act of moderate violence who are moved to no violence.
+
+```{r}
+
+
+plot_df <- 
+  get_simulations(results) %>% 
+  as_tibble() %>%
+  mutate(
+    treat_effects = rep(names(tau_models), each = 2000), 
+    estimator_label = str_replace(estimator_label, " ", "\n")
+  )
+
+
+plot_df %>%
+  ggplot(., aes(x = estimate, y = estimator_label)) +
+    geom_jitter(alpha = 0.10, height = 0.3, shape = 16) +
+    facet_wrap(
+      ~ factor(treat_effects),
+      nrow = 2,
+      ncol = 3,
+      labeller = label_parsed
+    ) +
+    geom_segment(aes(
+      x = estimate,
+      y = y + 0.35,
+      yend = y - 0.35,
+      xend = estimate,
+      group = estimator_label
+    ),
+    data = plot_df %>%
+      group_by(treat_effects, estimator_label) %>%
+      summarise(estimate = mean(estimate)) %>%
+      mutate(y = ifelse(estimator_label == "continuous\noutcome", 2, 1)),
+    color = "red") +
+    labs(x = expression("Estimate"~(widehat(tau))), y = "") 
+
+power_df <- 
+  get_diagnosands(results) %>% 
+  as_tibble() %>%
+  mutate(
+    treat_effects = rep(names(tau_models), each = 2),
+    estimator_label = str_replace(estimator_label, " ", "\n")
+  )
+
+power_df %>%
+  ggplot(aes(y = power, x = estimator_label)) +
+  facet_wrap(~factor(treat_effects), labeller = label_parsed, nrow = 2, ncol = 3, scales = "free") +
+  geom_point() +
+  geom_segment(aes(y = power - 1.96 * `se(power)`, yend = power + 1.96 * `se(power)`, xend = estimator_label)) +
+  geom_text(aes(
+    label = round(power, 2),
+    y = if_else(
+      estimator_label == "continuous\noutcome" &
+        design_label == "design_1",
+      power + 0.01,
+      power + 3 * `se(power)`
+    )
+    ),
+    size = 3
+  ) +
+    labs(x = expression("Power"~(beta)), y = "")
+```
+
+# Appendix
+## Full results
+```{r}
+reshape_diagnosis(results) %>%
+    dplyr::select(-N, -lambda, -theta, -Rho, -tau) %>%
+  mutate(`Design Label` = case_when(
+    `Design Label` == "design_1" ~ "constant",
+    `Design Label` == "design_2" ~ "physical_only",
+    `Design Label` == "design_3" ~ "sexual_only",
+    `Design Label` == "design_4" ~ "moderate_only",
+    `Design Label` == "design_5" ~ "severe_backlash",
+    `Design Label` == "design_6" ~ "sexual_backlash",
+    TRUE ~ ""
+  )) %>%
+kable(digits = 2, caption = "Design diagnosis.", booktabs = TRUE) %>% 
+  kable_styling()
+```
