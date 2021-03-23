@@ -15,7 +15,7 @@ ipv_design <- function(N, lambda, theta, Rho, tau = -1) {
     # define how treatment affects outcomes at endline
     declare_potential_outcomes(
       .cols = everything(),
-      tau = -1,
+      tau = tau,
       handler = potential_outcomes_function
     ) +
     # define estimands 
@@ -117,7 +117,7 @@ potential_outcomes_function <- function(data, .cols, tau, subset = TRUE) {
     across(
       .cols = .cols, 
       .fns = list(
-        Z_1 = ~ if_else(.x > 0 & subset, .x + tau, .x),
+        Z_1 = ~ tau(.x),
         Z_0 = ~ .x
       ),
       .names = "{str_replace(.col, 'u', 'Y')}_{.fn}"
