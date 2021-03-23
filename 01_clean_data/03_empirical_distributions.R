@@ -4,12 +4,12 @@ data_list <-
   lapply(
     act_variables, 
     function(x, df) list(N = nrow(df), y = df[[x]]), 
-    df = elw
+    df = subset(elw, Z == 0)
   )
 
-mod <- cmdstan_model("01_clean_data/fit_poisson_to_data.stan")
+mod <- cmdstan_model("01_clean_data/fit_zip_to_data.stan")
 
-lambda <- sapply(
+params <- sapply(
   data_list, 
   function(x) {
     fit_mle <- mod$optimize(
@@ -17,11 +17,13 @@ lambda <- sapply(
       seed = 123
     )
     
-    fit_mle$mle("lambda")
+    fit_mle$mle(c("lambda", "theta"))
   }
 )
-names(lambda) <- NULL
 
-Sigma <- cov(elw[, act_variables])
-colnames(Sigma) <- NULL
-row.names(Sigma) <- NULL
+lambda <- params[1, ]
+theta <- params[2, ]
+
+Rho <- cor(elw[elw$Z == 0, act_variables]) + 0.3
+colnames(Rho) <- NULL
+row.names(Rho) <- NULL

@@ -1,6 +1,6 @@
 # define designer function ------------------------------------------------
 
-ipv_design <- function(N, lambda, Sigma) {
+ipv_design <- function(N, lambda, theta, Rho, tau = -1) {
   # define latent baseline outcomes as a series of correlated poisson random
   # variables representing the number of instances of act Y_i over the study
   # period
@@ -8,7 +8,8 @@ ipv_design <- function(N, lambda, Sigma) {
     declare_population(
       N = N,
       lambda = lambda,
-      Sigma = Sigma,
+      theta = theta,
+      Rho = Rho,
       handler = draw_correlated_counts
     ) + 
     # define how treatment affects outcomes at endline
@@ -61,14 +62,22 @@ ipv_design <- function(N, lambda, Sigma) {
 
 # helper functions --------------------------------------------------------
 
-# draw correlated poisson random variables using the inverse normal
-# transformation. lambda is vector of marginal means of poisson variables and
-# Sigma is correlation matrix
-draw_correlated_counts <- function(N, lambda, Sigma) {
-  U <- mvrnorm(N, rep(0, length(lambda)), Sigma)
-  U_inv <- pnorm(U)
+# draw correlated zero-inflated poisson random variables using the inverse normal
+# transformation. lambda is vector of marginal means of poisson variables, theta
+# is vector of marginal means of bernoulli variables Rho1 and Rho2 are 
+# correlation matrices
+draw_correlated_counts <- function(N, lambda, theta, Rho) {
+  U1 <- mvrnorm(N, rep(0, length(lambda)), Rho)
+  U1_inv <- pnorm(U1)
   
-  Y <- qpois(U_inv, lambda)
+  U2 <- mvrnorm(N, rep(0, length(theta)), Rho)
+  U2_inv <- pnorm(U2)
+  
+  Y <- sapply(
+    X = seq_along(lambda),
+    FUN = function(x) qpois(U1_inv[, x], lambda[x]) * qbinom(U2_inv[, x], 1, 1 - theta[x])
+  )
+  
   colnames(Y) <- paste0("u", 1:length(lambda))
   
   return(as_tibble(Y))
