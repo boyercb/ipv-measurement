@@ -92,7 +92,7 @@ categorize_counts <- function(data, .cols) {
   mutate(
     data, 
     across(
-      .cols = .cols, 
+      .cols = all_of(.cols), 
       .fns = ~ as.numeric(cut(.x, breaks = c(-Inf, 0, 1, 4, Inf))) - 1,
       .names = "{.col}_star"
     )
