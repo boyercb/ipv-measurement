@@ -20,6 +20,8 @@ source("01_clean_data/02_load_empirical_data.R")
 
 source("01_clean_data/03_empirical_distributions.R")
 
+source("01_clean_data/04_illustrate_dgp.R")
+
 
 # define and run simulations ----------------------------------------------
 
@@ -31,7 +33,7 @@ source("02_simulations/03_plot_simulation_results.R")
 
 
 # TODO:
-# 1. decide whether to use blw instead of elw or just control group for elw
+# 1. decide whether to use blw instead of elw or just control group for elw (x)
 # 2. check whether inverse transform needs cov or cor matrix
 # 3. verify whether you need to apply correction for inv-normal approx.
 # 4. implement subset option for specify PO function
