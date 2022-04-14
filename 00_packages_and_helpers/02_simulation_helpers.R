@@ -185,8 +185,8 @@ potential_outcomes_function <- function(data, .cols, categorize = TRUE, tau) {
   data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_0")] <-
     data[, .cols]
   
-  data$Y_Z_1 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_1")])
-  data$Y_Z_0 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_0")])
+  data$Y_Z_1 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_1")], na.rm = TRUE)
+  data$Y_Z_0 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_0")], na.rm = TRUE)
   
   if (categorize) {
     data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_star_Z_1")] <-
@@ -199,8 +199,8 @@ potential_outcomes_function <- function(data, .cols, categorize = TRUE, tau) {
         as.numeric(cut(data[[x]], breaks = c(-Inf, 0, 1, 4, Inf))) - 1
       })
     
-    data$Y_star_Z_1 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_star_Z_1")])
-    data$Y_star_Z_0 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_star_Z_0")])
+    data$Y_star_Z_1 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_star_Z_1")], na.rm = TRUE)
+    data$Y_star_Z_0 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_star_Z_0")], na.rm = TRUE)
   }
   
   data
