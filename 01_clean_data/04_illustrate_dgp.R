@@ -21,7 +21,7 @@ p1 <-
     alpha = 0.45
   ) + 
   geom_bar(
-    aes(x = push_star, y = ..prop.., fill = "Simulated (Poisson)"),
+    aes(x = push_star, y = ..prop.., fill = "Simulated"),
     data = single_act_sim,
     #binwidth = 1,
     alpha = 0.45
@@ -38,8 +38,10 @@ p1 <-
       group_by(physical_push_5mo_freq_i_w) %>%
       summarise(prop = n() / nrow(subset(elw, Z == 0)))
   ) +
-  theme_minimal(base_family = "Palatino", base_size = 14) +
-  theme(legend.position = c(0.85, 0.92)) +
+  theme_minimal(base_family = "Palatino", base_size = 11) +
+  theme(legend.position = "none", 
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
   scale_fill_brewer(name = "", palette = "Set1") +
   labs(
        x = "\nViolence category (Y*)",
@@ -50,8 +52,8 @@ ggsave(
   filename = "07_results/02_figures/single_act_zip.pdf",
   plot = p1,
   device = "pdf",
-  width = 6.7,
-  height = 4.8
+  width = 3.5,
+  height = 3
 )
 
 p2 <- 
@@ -63,7 +65,7 @@ p2 <-
     alpha = 0.45
   ) + 
   geom_bar(
-    aes(x = nb_push_star, y = ..prop.., fill = "Simulated (Neg.bin.)"),
+    aes(x = nb_push_star, y = ..prop.., fill = "Simulated"),
     data = single_act_sim,
     #binwidth = 1,
     alpha = 0.45
@@ -80,12 +82,23 @@ p2 <-
       group_by(physical_push_5mo_freq_i_w) %>%
       summarise(prop = n() / nrow(subset(elw, Z == 0)))
   ) +
-  theme_minimal(base_family = "Palatino") +
+  theme_minimal(base_family = "Palatino", base_size = 11) +
+  theme(legend.position = c(0.8, 0.87), 
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
   scale_fill_brewer(name = "", palette = "Set1") +
   labs(
     x = "\nViolence category (Y*)",
     y = "Probability\n"
   )
+
+ggsave(
+  filename = "07_results/02_figures/single_act_zinb.pdf",
+  plot = p2,
+  device = "pdf",
+  width = 3.5,
+  height = 3
+)
 
 
 # multiple act model ------------------------------------------------------
@@ -96,14 +109,16 @@ design <- ipv_design(
   theta = nb_theta,
   phi = nb_phi,
   Rho = Rho,
-  tau = function(x, col) { x }
+  tau = function(x, col, type) { x }
 )
 
 df <- draw_data(design)
 
 p1 <- ggplot(df, aes(x = Y_star)) +
   geom_bar(aes(y = ..prop..)) +
-  theme_minimal(base_family = "Palatino", base_size = 14) +
+  theme_minimal(base_family = "Palatino", base_size = 11) +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
   labs(x = "",
        y = "Probability\n"
   )
@@ -142,7 +157,9 @@ p2 <-
   ggplot(df_long, aes(x = value)) +
   geom_bar(aes(y = ..prop..)) +
   facet_wrap(~factor(key, levels = paste0("Y", 1:10), labels = acts), ncol = 5) + 
-  theme_minimal(base_family = "Palatino", base_size = 14) +
+  theme_minimal(base_family = "Palatino", base_size = 11) +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
   labs(x = "\nViolence category (Y*)",
        y = "Probability\n"
        # title = "PMF of each act"
@@ -156,21 +173,44 @@ p3 <-
     cor(cmat),
     type = 'full',
     show.diag = TRUE,
-    legend.title = "Correlation",
-    lab = TRUE,
-    lab_col = "black",
-    lab_size = 2.75,
+    legend.title = "Correlation"
+    # lab = TRUE,
+    # lab_col = "black",
+    # lab_size = 2.75,
   ) +
-  theme_minimal(base_family = "Palatino", base_size = 14) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   labs(
-    title = "", x = "", y = ""
-  ) 
-  
-design <- ipv_design(
-  N = 1680,
-  empirical = simdata,
-  tau = function(x, col) { x }
+    title = NULL, x = NULL, y = NULL
+  ) +
+  geom_text(aes(label = round(value, 2)), size = 2, family = "Palatino") +
+  theme_minimal(base_family = "Palatino", base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+    legend.position = "none",
+    axis.title = element_blank()) 
+
+
+
+ggsave(
+  filename = "07_results/02_figures/multiple_act_pmf.pdf",
+  plot = p1,
+  device = "pdf",
+  width = 6.7,
+  height = 2
 )
 
-df <- draw_data(design)
+ggsave(
+  filename = "07_results/02_figures/multiple_act_pmf_act.pdf",
+  plot = p2,
+  device = "pdf",
+  width = 6.7,
+  height = 2.75
+)
+
+ggsave(
+  filename = "07_results/02_figures/multiple_act_corr.pdf",
+  plot = p3,
+  device = "pdf",
+  width = 5,
+  height = 3
+)
+

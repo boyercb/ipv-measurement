@@ -15,6 +15,12 @@ if (RERUN_SIMS) {
         .x = countries, 
         .f = ~select(filter(dhs, country == .x), -country)
       ),
+      probs = list(
+        c(0.4, 0.6, 0, 0),     # 40% unaffected, 60% violence stops
+        c(0.4, 0.3, 0.3, 0),   # 40% unaffected, 30% violence stops, 30% violence reduces
+        c(0.4, 0, 0.6, 0),     # 40% unaffected, 60% violence reduces
+        c(0.4, 0.2, 0.2, 0.2)  # 40% unaffected, 20% violence stops, 20% violence reduces, 20% violence increases
+      ),
       tau = tau_models
     )
     
@@ -26,4 +32,3 @@ if (RERUN_SIMS) {
 } else {
   results <- read_rds(paste0(results_path, results_filename))
 }
-

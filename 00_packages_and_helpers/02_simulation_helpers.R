@@ -7,7 +7,8 @@ ipv_design <-
            phi = NULL,
            Rho = diag(rep(1, 10)),
            empirical = NULL,
-           tau = function(x, col) { x }) {
+           probs = c(0.3, 0.7, 0, 0),
+           tau = function(x, col, type) { x }) {
   # define latent baseline outcomes as a series of correlated poisson random
   # variables representing the number of instances of act Y_i over the study
   # period
@@ -25,6 +26,7 @@ ipv_design <-
         handler = potential_outcomes_function,
         .cols = paste0("u", 1:ncol(empirical)),
         tau = tau,
+        probs = probs,
         categorize = FALSE
       ) +
       # define estimands
@@ -71,6 +73,7 @@ ipv_design <-
       declare_potential_outcomes(
         handler = potential_outcomes_function,
         .cols = paste0("u", 1:length(lambda)),
+        probs = probs,
         tau = tau
       ) +
       # define estimands 
@@ -116,12 +119,20 @@ ipv_design <-
       model = estimatr::lm_robust,
       label = "binary outcome"
     ) +
+    # declare_estimator(
+    #   Y ~ Z + X,
+    #   model = glm,
+    #   inquiry = "ATE_binary",
+    #   family = binomial("logit"),
+    #   model_summary = tidy_margins,
+    #   term = "Z"
+    # ) +
     declare_estimator(
       Y_star ~ Z,
       inquiry = "ATE_frequency_star",
       model = estimatr::lm_robust,
       label = "continuous outcome"
-    )
+    ) 
   
   return(design)
 
@@ -129,6 +140,10 @@ ipv_design <-
 
 
 # helper functions --------------------------------------------------------
+
+tidy_margins <- function(x) {
+  tidy(margins(x, data = x$data), conf.int = TRUE)
+}
 
 # draw correlated zero-inflated poisson random variables using the inverse normal
 # transformation. lambda is vector of marginal means of poisson variables, theta
@@ -177,30 +192,31 @@ construct_outcomes <- function(data, .cols) {
 }
 
 # define potential outcomes function in which treatment 
-potential_outcomes_function <- function(data, .cols, categorize = TRUE, tau) {
+potential_outcomes_function <- function(data, .cols, probs, categorize = TRUE, tau) {
+  type <- fabricatr::draw_categorical(probs, N = nrow(data), category_labels = c("1", "2", "3", "4"))
+    
+  data[, paste0(gsub('u', 'Y', .cols), "_Z_1")] <-
+    sapply(.cols, function(x) tau(data[[x]], .cols, type))
   
-  data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_1")] <-
-    sapply(.cols, function(x) tau(data[[x]], .cols))
-  
-  data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_0")] <-
+  data[, paste0(gsub('u', 'Y', .cols), "_Z_0")] <-
     data[, .cols]
   
-  data$Y_Z_1 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_1")], na.rm = TRUE)
-  data$Y_Z_0 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_0")], na.rm = TRUE)
+  data$Y_Z_1 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_Z_1")], na.rm = TRUE)
+  data$Y_Z_0 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_Z_0")], na.rm = TRUE)
   
   if (categorize) {
-    data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_star_Z_1")] <-
-      sapply(paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_1"), function (x) {
+    data[, paste0(gsub('u', 'Y', .cols), "_star_Z_1")] <-
+      sapply(paste0(gsub('u', 'Y', .cols), "_Z_1"), function (x) {
         as.numeric(cut(data[[x]], breaks = c(-Inf, 0, 1, 4, Inf))) - 1
       })
     
-    data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_star_Z_0")] <-
-      sapply(paste0(stringr::str_replace(.cols, 'u', 'Y'), "_Z_0"), function (x) {
+    data[, paste0(gsub('u', 'Y', .cols), "_star_Z_0")] <-
+      sapply(paste0(gsub('u', 'Y', .cols), "_Z_0"), function (x) {
         as.numeric(cut(data[[x]], breaks = c(-Inf, 0, 1, 4, Inf))) - 1
       })
     
-    data$Y_star_Z_1 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_star_Z_1")], na.rm = TRUE)
-    data$Y_star_Z_0 <- rowSums(data[, paste0(stringr::str_replace(.cols, 'u', 'Y'), "_star_Z_0")], na.rm = TRUE)
+    data$Y_star_Z_1 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_star_Z_1")], na.rm = TRUE)
+    data$Y_star_Z_0 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_star_Z_0")], na.rm = TRUE)
   }
   
   data
