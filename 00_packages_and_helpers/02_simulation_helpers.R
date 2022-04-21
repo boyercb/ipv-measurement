@@ -193,10 +193,13 @@ construct_outcomes <- function(data, .cols) {
 
 # define potential outcomes function in which treatment 
 potential_outcomes_function <- function(data, .cols, probs, categorize = TRUE, tau) {
-  type <- fabricatr::draw_categorical(probs, N = nrow(data), category_labels = c("1", "2", "3", "4"))
-    
+  data$type <-
+    fabricatr::draw_categorical(probs,
+                                N = nrow(data),
+                                category_labels = c("1", "2", "3", "4"))
+  
   data[, paste0(gsub('u', 'Y', .cols), "_Z_1")] <-
-    sapply(.cols, function(x) tau(data[[x]], .cols, type))
+    sapply(.cols, function(x) tau(data[[x]], x, data$type))
   
   data[, paste0(gsub('u', 'Y', .cols), "_Z_0")] <-
     data[, .cols]
