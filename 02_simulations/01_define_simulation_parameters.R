@@ -32,7 +32,7 @@ tau_models <- list(
   # effect on moderate physical violence only 
   moderate_only = function(x, col, type) {
     ifelse(
-      x == 1 & col %in% paste0('u', 1:2),
+      x > 0 & col %in% paste0('u', 1:2),
       (type == "1") * x + (type == "2") * 0 + (type == "3") * (x - 1) + 
         (type == "4") * ((x < 3) * (x + 1) + (x == 3) * 3),
       x
