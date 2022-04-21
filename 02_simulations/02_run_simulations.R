@@ -16,10 +16,10 @@ if (RERUN_SIMS) {
         .f = ~select(filter(dhs, country == .x), -country)
       ),
       probs = list(
-        c(0.4, 0.6, 0, 0),     # 40% unaffected, 60% violence stops
-        c(0.4, 0.3, 0.3, 0),   # 40% unaffected, 30% violence stops, 30% violence reduces
-        c(0.4, 0, 0.6, 0),     # 40% unaffected, 60% violence reduces
-        c(0.4, 0.2, 0.2, 0.2)  # 40% unaffected, 20% violence stops, 20% violence reduces, 20% violence increases
+        c(0.7,  0.3,    0,   0),  # 70% unaffected, 30% violence stops
+        c(0.7, 0.15, 0.15,   0),  # 70% unaffected, 15% violence stops, 15% violence reduces
+        c(0.7,    0,  0.3,   0),  # 70% unaffected, 30% violence reduces
+        c(0.7,  0.1,  0.1, 0.1)   # 70% unaffected, 10% violence stops, 10% violence reduces, 10% violence increases
       ),
       tau = tau_models
     )
