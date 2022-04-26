@@ -1,0 +1,36 @@
+\begin{table}
+
+\caption{Simulation results based on Becoming One study in Uganda.\label{tab:b1_sims}}
+\centering
+\fontsize{7}{9}\selectfont
+\begin{threeparttable}
+\begin{tabular}[t]{lcccccccccccc}
+\toprule
+\multicolumn{1}{c}{ } & \multicolumn{4}{c}{All acts} & \multicolumn{4}{c}{Physical only} & \multicolumn{4}{c}{Sexual only} \\
+\cmidrule(l{3pt}r{3pt}){2-5} \cmidrule(l{3pt}r{3pt}){6-9} \cmidrule(l{3pt}r{3pt}){10-13}
+ & Bias & RMSE & Power & Coverage & Bias & RMSE & Power & Coverage & Bias & RMSE & Power & Coverage\\
+\midrule
+\addlinespace[0.3em]
+\multicolumn{13}{l}{\textbf{Cessation only}}\\
+\hspace{1em}$Y_{binary}$ & 0 & 0.020 & 1.000 & 0.957 & 0 & 0.022 & 0.289 & 0.946 & 0 & 0.021 & 0.682 & 0.956\\
+\hspace{1em}$Y_{sum}$ & 0 & 0.006 & 0.972 & 0.964 & 0 & 0.006 & 0.511 & 0.957 & 0 & 0.006 & 0.375 & 0.959\\
+\addlinespace[0.3em]
+\multicolumn{13}{l}{\textbf{Cessation + reduction}}\\
+\hspace{1em}$Y_{binary}$ & 0 & 0.021 & 0.488 & 0.949 & 0 & 0.022 & 0.071 & 0.953 & 0 & 0.022 & 0.125 & 0.953\\
+\hspace{1em}$Y_{sum}$ & 0 & 0.006 & 0.551 & 0.961 & 0 & 0.006 & 0.194 & 0.960 & 0 & 0.006 & 0.152 & 0.955\\
+\addlinespace[0.3em]
+\multicolumn{13}{l}{\textbf{Reduction only}}\\
+\hspace{1em}$Y_{binary}$ & 0 & 0.022 & 0.048 & 0.952 & 0 & 0.022 & 0.048 & 0.952 & 0 & 0.022 & 0.048 & 0.952\\
+\hspace{1em}$Y_{sum}$ & 0 & 0.006 & 0.255 & 0.957 & 0 & 0.006 & 0.103 & 0.954 & 0 & 0.006 & 0.096 & 0.957\\
+\addlinespace[0.3em]
+\multicolumn{13}{l}{\textbf{Cessation + reduction + increase}}\\
+\hspace{1em}$Y_{binary}$ & 0 & 0.021 & 0.481 & 0.953 & 0 & 0.022 & 0.072 & 0.949 & 0 & 0.022 & 0.127 & 0.955\\
+\hspace{1em}$Y_{sum}$ & 0 & 0.006 & 0.350 & 0.957 & 0 & 0.006 & 0.136 & 0.956 & 0 & 0.006 & 0.113 & 0.953\\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}[para]
+\item \textit{Notes:} 
+\item Monte carlo performance estimates based on 1,000 simulated assignments and 100 bootstrap samples. 
+\end{tablenotes}
+\end{threeparttable}
+\end{table}

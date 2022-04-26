@@ -1,6 +1,7 @@
 elw <- read_rds("../../3_data/elw.rds")
 
-simdata <- select(elw, all_of(act_variables))
+simdata <- filter(elw, Z == 0)
+simdata <- select(simdata, all_of(act_variables))
 colnames(simdata) <- paste0("u", 1:10)
 
 # load DHS data -----------------------------------------------------------
@@ -24,7 +25,7 @@ import_dta <- function(f) {
   dta <-
     read_stata(file = str_c(dhs_path, f),
                col_select = c(v044, d105a:d105k))
-  dta <- zap_labels(dta)
+  #dta <- zap_labels(dta)
   f <- str_remove(f, str_c(".", file_ext(f)))
   
   dta %>%

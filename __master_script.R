@@ -36,7 +36,8 @@ source("02_simulations/03_plot_simulation_results.R")
 # 1. decide whether to use blw instead of elw or just control group for elw (x)
 # 2. check whether inverse transform needs cov or cor matrix
 # 3. verify whether you need to apply correction for inv-normal approx.
-# 4. implement subset option for specify PO function
+# 4. implement subset option for specify PO function (x)
 # 5. compare fit of poisson versus negbinom or zip to empirical data
 # 6. enumerate causal models of treatment dynamics
 # 7. add baseline violence as optional adjustment variable and het fx source
+# 8. maybe parameterize as % ceased, % reduced, % unaffected, % increased, % new

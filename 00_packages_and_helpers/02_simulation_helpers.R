@@ -14,17 +14,22 @@ ipv_design <-
   # period
     
   if (!is.null(empirical)) {
+    if (is.character(empirical)) {
+      df <- select(filter(dhs, country == empirical), -country)
+    } else if (is.data.frame(empirical)) {
+      df <- empirical
+    }
     # re-sampling approach from empirical distribution
     design <-
       declare_model(
         handler = fabricatr::resample_data,
         N = N,
-        data = empirical
+        data = df
       ) + 
       # define how treatment affects outcomes at endline
       declare_potential_outcomes(
         handler = potential_outcomes_function,
-        .cols = paste0("u", 1:ncol(empirical)),
+        .cols = paste0("u", 1:ncol(df)),
         tau = tau,
         probs = probs,
         categorize = FALSE
@@ -39,23 +44,16 @@ ipv_design <-
       declare_assignment(
         Z = randomizr::conduct_ra(N = N, prob = 0.5)
       ) +
-      # reveal potential
+      # reveal potential outcomes
       declare_measurement(
-        Y1 = fabricatr::reveal_outcomes(Y1 ~ Z),
-        Y2 = fabricatr::reveal_outcomes(Y2 ~ Z),
-        Y3 = fabricatr::reveal_outcomes(Y3 ~ Z),
-        Y4 = fabricatr::reveal_outcomes(Y4 ~ Z),
-        Y5 = fabricatr::reveal_outcomes(Y5 ~ Z),
-        Y6 = fabricatr::reveal_outcomes(Y6 ~ Z),
-        Y7 = fabricatr::reveal_outcomes(Y7 ~ Z),
-        Y8 = fabricatr::reveal_outcomes(Y8 ~ Z),
-        Y9 = fabricatr::reveal_outcomes(Y9 ~ Z),
-        Y10 = fabricatr::reveal_outcomes(Y10 ~ Z)
+        handler = reveal_intermediate_outcomes,
+        outcomes = paste0("Y", 1:ncol(df)),
+        assignments = "Z"
       ) +
       # construct final outcomes
       declare_step(
         handler = construct_outcomes,
-        .cols = paste0("Y", 1:ncol(empirical))
+        .cols = paste0("Y", 1:ncol(df))
       )
     
   } else {
@@ -86,18 +84,11 @@ ipv_design <-
       declare_assignment(
         Z = randomizr::conduct_ra(N = N, prob = 0.5)
       ) +
-      # reveal potential 
+      # reveal potential outcomes
       declare_measurement(
-        Y1 = fabricatr::reveal_outcomes(Y1 ~ Z),
-        Y2 = fabricatr::reveal_outcomes(Y2 ~ Z),
-        Y3 = fabricatr::reveal_outcomes(Y3 ~ Z),
-        Y4 = fabricatr::reveal_outcomes(Y4 ~ Z),
-        Y5 = fabricatr::reveal_outcomes(Y5 ~ Z),
-        Y6 = fabricatr::reveal_outcomes(Y6 ~ Z),
-        Y7 = fabricatr::reveal_outcomes(Y7 ~ Z),
-        Y8 = fabricatr::reveal_outcomes(Y8 ~ Z),
-        Y9 = fabricatr::reveal_outcomes(Y9 ~ Z),
-        Y10 = fabricatr::reveal_outcomes(Y10 ~ Z) 
+        handler = reveal_intermediate_outcomes,
+        outcomes = paste0("Y", 1:length(lambda)),
+        assignments = "Z"
       ) +
       # categorize latent violence according to WHO questionnaire categories
       declare_measurement(
@@ -129,10 +120,22 @@ ipv_design <-
     # ) +
     declare_estimator(
       Y_star ~ Z,
+      inquiry = "ATE_frequency",
+      model = estimatr::lm_robust,
+      label = "continuous outcome vs. truth"
+    ) +
+    declare_estimator(
+      Y_star ~ Z,
       inquiry = "ATE_frequency_star",
       model = estimatr::lm_robust,
       label = "continuous outcome"
     ) 
+    # declare_estimator(
+    #   log(Y_star + 1) ~ Z,
+    #   inquiry = "ATE_frequency_star",
+    #   model = estimatr::lm_robust,
+    #   label = "continuous outcome (log)"
+    # ) 
   
   return(design)
 
@@ -143,6 +146,29 @@ ipv_design <-
 
 tidy_margins <- function(x) {
   tidy(margins(x, data = x$data), conf.int = TRUE)
+}
+
+
+reveal_intermediate_outcomes <- function(data, outcomes, assignments) {
+  assignment_data <- data[, assignments]
+  
+  potential_cols <- mapply(paste,
+                           assignments,
+                           assignment_data,
+                           sep = "_",
+                           SIMPLIFY = TRUE)
+
+  ret <-
+    sapply(outcomes, function(x) {
+      pcs <- paste(x, potential_cols, sep = "_")
+      matching_rows <- seq_len(nrow(data))
+      matching_cols <- match(pcs, colnames(data))
+      as.numeric(data[cbind(matching_rows, matching_cols)])
+    })
+  
+  colnames(ret) <- outcomes
+  
+  cbind(data, ret)
 }
 
 # draw correlated zero-inflated poisson random variables using the inverse normal
@@ -161,10 +187,14 @@ draw_correlated_counts <- function(N, lambda, theta, phi, Rho) {
   } else {
     Y <- qnbinom(U1_inv, mu = lambda, size = phi) * qbinom(U2_inv, 1, 1 - theta)
   }
+  if (length(lambda) > 1) {
+    colnames(Y) <- paste0("u", 1:length(lambda))
+    return(as.data.frame(Y))
+    
+  } else {
+    return(data.frame(u1 = Y))
+  }
   
-  colnames(Y) <- paste0("u", 1:length(lambda))
-  
-  return(tibble::as_tibble(Y))
 }
 
 # transform latent violent act counts into WHO categories, i.e.
@@ -174,18 +204,26 @@ draw_correlated_counts <- function(N, lambda, theta, phi, Rho) {
 # 3 - Many times [5+]
 categorize_counts <- function(data, .cols) {
 
-  data[, paste0(.cols, "_star")] <-
-    sapply(.cols, function (x) {
-      as.numeric(cut(data[[x]], breaks = c(-Inf, 0, 1, 4, Inf))) - 1
-    })
-  
+  if (length(.cols) > 1) {
+    data[, paste0(.cols, "_star")] <-
+      sapply(.cols, function (x) {
+        as.numeric(cut(data[[x]], breaks = c(-Inf, 0, 1, 4, Inf))) - 1
+      }, USE.NAMES = FALSE)
+  } else {
+    data[[paste0(.cols, "_star")]] <- 
+      as.numeric(cut(data[[.cols]], breaks = c(-Inf, 0, 1, 4, Inf))) - 1
+  }
   data
 }
 
 # construct final outcomes from constituent items
 construct_outcomes <- function(data, .cols) {
   
-  data$Y_star <- rowSums(data[, .cols], na.rm = TRUE)
+  if (length(.cols) > 1) {
+    data$Y_star <- rowSums(data[, .cols], na.rm = TRUE)
+  } else {
+    data$Y_star <- data[, .cols]
+  }
   data$Y_star_binary <- as.numeric(data$Y_star > 0)
   
   data
@@ -197,29 +235,39 @@ potential_outcomes_function <- function(data, .cols, probs, categorize = TRUE, t
     fabricatr::draw_categorical(probs,
                                 N = nrow(data),
                                 category_labels = c("1", "2", "3", "4"))
-  
+
   data[, paste0(gsub('u', 'Y', .cols), "_Z_1")] <-
-    sapply(.cols, function(x) tau(data[[x]], x, data$type))
-  
+    sapply(.cols, function(x) tau(data[[x]], x, data$type), USE.NAMES = FALSE)
+
   data[, paste0(gsub('u', 'Y', .cols), "_Z_0")] <-
     data[, .cols]
   
-  data$Y_Z_1 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_Z_1")], na.rm = TRUE)
-  data$Y_Z_0 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_Z_0")], na.rm = TRUE)
+  if (length(.cols) > 1) {
+    data$Y_Z_1 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_Z_1")], na.rm = TRUE)
+    data$Y_Z_0 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_Z_0")], na.rm = TRUE)
+  } else {
+    data$Y_Z_1 <- data[, paste0(gsub('u', 'Y', .cols), "_Z_1")]
+    data$Y_Z_0 <- data[, paste0(gsub('u', 'Y', .cols), "_Z_0")]
+  }
   
   if (categorize) {
     data[, paste0(gsub('u', 'Y', .cols), "_star_Z_1")] <-
       sapply(paste0(gsub('u', 'Y', .cols), "_Z_1"), function (x) {
         as.numeric(cut(data[[x]], breaks = c(-Inf, 0, 1, 4, Inf))) - 1
-      })
+      }, USE.NAMES = FALSE)
     
     data[, paste0(gsub('u', 'Y', .cols), "_star_Z_0")] <-
       sapply(paste0(gsub('u', 'Y', .cols), "_Z_0"), function (x) {
         as.numeric(cut(data[[x]], breaks = c(-Inf, 0, 1, 4, Inf))) - 1
-      })
+      }, USE.NAMES = FALSE)
     
-    data$Y_star_Z_1 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_star_Z_1")], na.rm = TRUE)
-    data$Y_star_Z_0 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_star_Z_0")], na.rm = TRUE)
+    if (length(.cols) > 1) {
+      data$Y_star_Z_1 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_star_Z_1")], na.rm = TRUE)
+      data$Y_star_Z_0 <- rowSums(data[, paste0(gsub('u', 'Y', .cols), "_star_Z_0")], na.rm = TRUE)
+    } else {
+      data$Y_star_Z_1 <- data[, paste0(gsub('u', 'Y', .cols), "_star_Z_1")]
+      data$Y_star_Z_0 <- data[, paste0(gsub('u', 'Y', .cols), "_star_Z_0")]
+    }
   }
   
   data
